@@ -1,0 +1,58 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\user\\Desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{9F51E49B-D269-495B-9002-E4C89E58C8AE}|key_macro.csproj|c:\\users\\user\\desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}",
+      "RelativeMoniker": "D:0:0:{9F51E49B-D269-495B-9002-E4C89E58C8AE}|key_macro.csproj|solutionrelative:mainwindow.xaml||{F11ACC28-31D1-4C80-A34B-F4E09D3D753C}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{9F51E49B-D269-495B-9002-E4C89E58C8AE}|key_macro.csproj|c:\\users\\user\\desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{9F51E49B-D269-495B-9002-E4C89E58C8AE}|key_macro.csproj|solutionrelative:mainwindow.xaml.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "MainWindow.xaml",
+              "DocumentMoniker": "C:\\Users\\user\\Desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\MainWindow.xaml",
+              "RelativeDocumentMoniker": "MainWindow.xaml",
+              "ToolTip": "C:\\Users\\user\\Desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\MainWindow.xaml",
+              "RelativeToolTip": "MainWindow.xaml",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.003549|",
+              "WhenOpened": "2026-07-13T06:37:55.864Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Bookmark",
+              "Name": "ST:0:0:{c6f34f0d-7ae5-4f3a-be61-fe0c21ae9eb8}"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "MainWindow.xaml.cs",
+              "DocumentMoniker": "C:\\Users\\user\\Desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\MainWindow.xaml.cs",
+              "RelativeDocumentMoniker": "MainWindow.xaml.cs",
+              "ToolTip": "C:\\Users\\user\\Desktop\\\uC5C5\uBB34\\\uC791\uC5C5\uD30C\uC77C\\key_macro\\MainWindow.xaml.cs",
+              "RelativeToolTip": "MainWindow.xaml.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAKwDAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-13T06:37:54.057Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+C:\Users\user\Downloads\key_macro.exe
+C:\Users\user\Downloads\key_macro.dll
+C:\Users\user\Downloads\key_macro.deps.json
+C:\Users\user\Downloads\key_macro.runtimeconfig.json
+C:\Users\user\Downloads\key_macro.pdb

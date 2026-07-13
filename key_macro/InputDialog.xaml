@@ -1,0 +1,94 @@
+<Window x:Class="KeyMacro.InputDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="프로필 저장" SizeToContent="Height" Width="360"
+        Background="#0F0F1A" Foreground="#E2E8F0"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        WindowStyle="None" AllowsTransparency="True"
+        MouseDown="Window_MouseDown">
+    <Window.Resources>
+        <!-- 버튼 스타일 정의 -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#312E81" />
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4338CA" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#4F46E5" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#6366F1" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#DC2626" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#EF4444" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1E1E2F" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#475569" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="CaretBrush" Value="#E2E8F0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#6366F1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Background="#0F0F1A" BorderBrush="#4F46E5" BorderThickness="1.5" CornerRadius="8">
+        <Grid Margin="20">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <TextBlock x:Name="PromptTextBlock" Text="저장할 프로필 이름을 입력하세요:" FontWeight="Bold" FontSize="13" Margin="0,0,0,12" Foreground="#818CF8"/>
+            
+            <TextBox x:Name="InputTextBox" Grid.Row="1" Height="32" Margin="0,0,0,15" VerticalContentAlignment="Center" HorizontalAlignment="Stretch"/>
+            
+            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="저장" Width="75" Height="30" Margin="0,0,8,0" Style="{StaticResource AccentButton}" Click="SaveButton_Click" IsDefault="True"/>
+                <Button Content="취소" Width="75" Height="30" Style="{StaticResource DangerButton}" Click="CancelButton_Click" IsCancel="True"/>
+            </StackPanel>
+        </Grid>
+    </Border>
+</Window>

@@ -1,0 +1,405 @@
+<Window x:Class="KeyMacro.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="KeyDown_Macro_v1"
+        Height="680"
+        Width="840"
+        MaxHeight="680"
+        MaxWidth="840"
+        MinHeight="340"
+        MinWidth="420"
+        Background="#0F0F1A"
+        Foreground="#E2E8F0"
+        WindowStartupLocation="CenterScreen">
+    
+    <Window.Resources>
+        <!-- 스타일 재정의 (다크 테마 디자인) -->
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="FontFamily" Value="Segoe UI, Malgun Gothic" />
+        </Style>
+
+        <!-- 세련된 버튼 스타일 -->
+        <Style x:Key="ModernButton" TargetType="Button">
+            <Setter Property="Background" Value="#312E81" />
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#4338CA" />
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#1E1B4B" />
+                    <Setter Property="Foreground" Value="#64748B" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 실행/시작 특화 버튼 (Indigo/Purple Accent) -->
+        <Style x:Key="AccentButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#4F46E5" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#6366F1" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 녹화 중단/정지용 레드 버튼 -->
+        <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource ModernButton}">
+            <Setter Property="Background" Value="#DC2626" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#EF4444" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- 입력 상자 스타일 -->
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="#1E1E2F" />
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#475569" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="6,4" />
+            <Setter Property="CaretBrush" Value="#E2E8F0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border x:Name="border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderBrush="{TemplateBinding BorderBrush}" 
+                                BorderThickness="{TemplateBinding BorderThickness}" 
+                                CornerRadius="4">
+                            <ScrollViewer x:Name="PART_ContentHost" Focusable="false" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Hidden"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsFocused" Value="True">
+                                <Setter TargetName="border" Property="BorderBrush" Value="#6366F1" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 콤보박스 스타일 -->
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="#1E1E2F" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderBrush" Value="#475569" />
+            <Setter Property="Padding" Value="6,4" />
+        </Style>
+
+        <!-- 콤보박스 아이템 스타일 (드롭다운 목록 내 글자 검정색 강제) -->
+        <Style TargetType="ComboBoxItem">
+            <Setter Property="Foreground" Value="#111111" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Padding" Value="6,4" />
+        </Style>
+
+        <!-- 리스트뷰 스타일 -->
+        <Style TargetType="ListView">
+            <Setter Property="Background" Value="#111122" />
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="BorderBrush" Value="#312E81" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="5" />
+        </Style>
+
+        <Style TargetType="ListViewItem">
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Margin" Value="0,2" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Border" 
+                                Background="Transparent" 
+                                CornerRadius="4" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="true">
+                                <Setter TargetName="Border" Property="Background" Value="#312E81"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="true">
+                                <Setter TargetName="Border" Property="Background" Value="#1E1B4B"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 탭 스타일 -->
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="#16162A" />
+            <Setter Property="BorderBrush" Value="#312E81" />
+            <Setter Property="BorderThickness" Value="0,1,0,0" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Background" Value="#1E1E3F" />
+            <Setter Property="Foreground" Value="#94A3B8" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="Border" 
+                                Background="{TemplateBinding Background}" 
+                                BorderThickness="1,1,1,0" 
+                                BorderBrush="#312E81" 
+                                CornerRadius="4,4,0,0" 
+                                Margin="0,0,4,0" 
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter x:Name="ContentSite" ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#16162A" />
+                                <Setter Property="Foreground" Value="#F8FAFC" />
+                                <Setter TargetName="Border" Property="BorderBrush" Value="#4F46E5" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#2A2A4F" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <!-- 상단 영역: 대상 윈도우 및 프로필 관리 -->
+            <RowDefinition Height="Auto" />
+            <!-- 메인 탭 영역 -->
+            <RowDefinition Height="*" />
+            <!-- 상태창 및 하단 실행바 -->
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- 상단 컨트롤 블록 -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,15">
+            <!-- 1. 대상 윈도우 선택 -->
+            <Grid Margin="0,0,0,8">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="대상 윈도우 선택:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold" Width="110"/>
+                <ComboBox x:Name="WindowComboBox" Grid.Column="1" VerticalAlignment="Center" Height="30" SelectionChanged="WindowComboBox_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Title}" Foreground="#111111" FontWeight="Medium"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button x:Name="RefreshWindowsButton" Content="새로고침" Grid.Column="2" Width="85" Height="30" Margin="10,0,0,0" Style="{StaticResource ModernButton}" Click="RefreshWindowsButton_Click"/>
+            </Grid>
+
+            <!-- 2. 매크로 프로필 저장/로드 -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="2*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="1.5*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="매크로 프로필 관리:" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold" Width="110"/>
+                <ComboBox x:Name="ProfileComboBox" Grid.Column="1" VerticalAlignment="Center" Height="30" SelectionChanged="ProfileComboBox_SelectionChanged">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayText}" Foreground="#111111" FontWeight="Medium"/>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button x:Name="LoadProfileButton" Content="불러오기" Grid.Column="2" Width="85" Height="30" Margin="10,0,0,0" Style="{StaticResource ModernButton}" Click="LoadProfileButton_Click"/>
+
+                <TextBox x:Name="ProfileNameTextBox" Grid.Column="3" Height="30" Margin="15,0,0,0" VerticalContentAlignment="Center" Tag="저장할 이름 입력"/>
+                <Button x:Name="SaveProfileButton" Content="프로필 저장" Grid.Column="4" Width="90" Height="30" Margin="5,0,0,0" Style="{StaticResource AccentButton}" Click="SaveProfileButton_Click"/>
+                <Button x:Name="DeleteProfileButton" Content="프로필 삭제" Grid.Column="5" Width="90" Height="30" Margin="5,0,0,0" Style="{StaticResource DangerButton}" Click="DeleteProfileButton_Click"/>
+            </Grid>
+        </StackPanel>
+
+        <!-- 메인 내용 (탭 구조) -->
+        <TabControl x:Name="MainTabControl" Grid.Row="1" Background="#16162A" BorderThickness="0,1,0,0" Margin="0,0,0,10">
+            <!-- 수동 매크로 설정 -->
+            <TabItem Header="수동 매크로 설정">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="2*" />
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 왼쪽: 동작 목록 -->
+                    <Grid Grid.Column="0" Margin="0,0,10,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="매크로 동작 시퀀스" FontSize="14" FontWeight="Bold" Margin="0,0,0,8" Foreground="#818CF8"/>
+                        <ListView x:Name="MacroActionListView" Grid.Row="1" DisplayMemberPath="DisplayText" SelectionChanged="MacroActionListView_SelectionChanged"/>
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                            <Button x:Name="MoveUpButton" Content="▲ 위로" Width="80" Height="28" Margin="0,0,5,0" Style="{StaticResource ModernButton}" Click="MoveUpButton_Click"/>
+                            <Button x:Name="MoveDownButton" Content="▼ 아래로" Width="80" Height="28" Margin="0,0,15,0" Style="{StaticResource ModernButton}" Click="MoveDownButton_Click"/>
+                            <Button x:Name="DeleteActionButton" Content="동작 삭제" Width="85" Height="28" Style="{StaticResource DangerButton}" Click="DeleteActionButton_Click"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 오른쪽: 동작 편집/추가 -->
+                    <Border Grid.Column="1" Background="#1E1E38" CornerRadius="8" Padding="15">
+                        <StackPanel>
+                            <TextBlock Text="동작 추가 및 수정" FontSize="14" FontWeight="Bold" Margin="0,0,0,15" Foreground="#818CF8"/>
+
+                            <!-- 키 지정 방법 안내 및 입력란 -->
+                            <TextBlock Text="1. 키 설정 (동시 입력 가능)" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="KeyInputTextBox" Height="30" IsReadOnly="True" Text="이곳을 클릭 후 키를 누르세요" 
+                                         GotFocus="KeyInputTextBox_GotFocus" LostFocus="KeyInputTextBox_LostFocus" PreviewKeyDown="KeyInputTextBox_PreviewKeyDown" PreviewKeyUp="KeyInputTextBox_PreviewKeyUp"/>
+                                <Button x:Name="ClearKeyButton" Content="초기화" Grid.Column="1" Width="55" Height="30" Margin="5,0,0,0" Style="{StaticResource ModernButton}" Click="ClearKeyButton_Click"/>
+                            </Grid>
+
+                            <!-- 키 누름 지속 시간 -->
+                            <TextBlock Text="2. 누르고 있을 시간 (초 단위)" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="DurationTextBox" Height="30" Text="0.1"/>
+                                <TextBlock Text="초" Grid.Column="1" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                            </Grid>
+
+                            <!-- 반복 횟수 -->
+                            <TextBlock Text="3. 반복 횟수" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="RepeatTextBox" Height="30" Text="1"/>
+                                <TextBlock Text="회" Grid.Column="1" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                            </Grid>
+
+                            <!-- 완료 후 대기 시간 -->
+                            <TextBlock Text="4. 완료 후 대기 시간 (초 단위)" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="DelayAfterTextBox" Height="30" Text="0.1"/>
+                                <TextBlock Text="초" Grid.Column="1" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                            </Grid>
+
+                            <!-- 액션 적용/추가 버튼들 -->
+                            <UniformGrid Columns="2" Rows="1">
+                                <Button x:Name="AddActionButton" Content="새 동작 추가" Height="35" Margin="0,0,5,0" Style="{StaticResource AccentButton}" Click="AddActionButton_Click"/>
+                                <Button x:Name="UpdateActionButton" Content="선택 항목 수정" Height="35" Margin="5,0,0,0" Style="{StaticResource ModernButton}" Click="UpdateActionButton_Click"/>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <!-- 실시간 키 녹화 -->
+            <TabItem Header="키 입력 실시간 녹화">
+                <Grid Margin="10">
+                    <Border Background="#1E1E38" CornerRadius="12" Padding="30" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            
+                            <!-- 상단 안내 -->
+                            <StackPanel Grid.Row="0">
+                                <TextBlock Text="실시간 녹화 컨트롤러" FontSize="18" FontWeight="Bold" Foreground="#818CF8" Margin="0,0,0,10"/>
+                                <TextBlock Text="녹화 시작을 누르고 키보드를 입력하면, 누르고 떼는 시간 간격까지 정밀 복제됩니다. (최대 5분)" 
+                                           Foreground="#94A3B8" FontSize="13"/>
+                            </StackPanel>
+                            
+                            <!-- 중앙: 상태 정보 요약 카드 -->
+                            <Border x:Name="RecordInfoCard" Grid.Row="1" Background="#16162E" BorderBrush="#312E81" BorderThickness="1" CornerRadius="8" Margin="0,20,0,20" Padding="20" HorizontalAlignment="Stretch" VerticalAlignment="Center" MaxWidth="500">
+                                <StackPanel>
+                                    <TextBlock x:Name="RecordTimerText" Text="남은 녹화 시간: 05:00" FontSize="22" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,0,0,15"/>
+                                    
+                                    <Border Background="#1E1B4B" CornerRadius="6" Padding="15">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,10">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="현재 녹화 상태:" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="RecordStatusText" Text="대기 중" Grid.Column="1" Foreground="#10B981" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
+                                            </Grid>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="기록된 키 입력 수:" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center"/>
+                                                <TextBlock x:Name="RecordCountText" Text="0 회" Grid.Column="1" Foreground="#818CF8" FontWeight="Bold" FontSize="13" VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 하단: 컨트롤 버튼들 -->
+                            <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                                <Button x:Name="StartRecordButton" Content="녹화 시작" Width="180" Height="42" Style="{StaticResource AccentButton}" Margin="0,0,15,0" Click="StartRecordButton_Click"/>
+                                <Button x:Name="StopRecordButton" Content="녹화 중지 및 저장" Width="180" Height="42" Style="{StaticResource DangerButton}" IsEnabled="False" Click="StopRecordButton_Click"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+        </TabControl>
+
+        <!-- 하단: 매크로 실행 컨트롤 및 상태바 -->
+        <Grid Grid.Row="2" Margin="0,5,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="상태: " FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="대기 중" VerticalAlignment="Center" Margin="5,0,0,0" Foreground="#10B981" FontWeight="SemiBold"/>
+            </StackPanel>
+            
+            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                <CheckBox x:Name="LoopMacroCheckBox" Content="매크로 무한 반복" Foreground="#E2E8F0" VerticalAlignment="Center" Margin="0,0,20,0"/>
+                <Button x:Name="StartMacroButton" Content="매크로 실행 (F5)" Width="130" Height="36" Style="{StaticResource AccentButton}" Margin="0,0,10,0" Click="StartMacroButton_Click"/>
+                <Button x:Name="StopMacroButton" Content="실행 중지 (F6)" Width="110" Height="36" Style="{StaticResource DangerButton}" Click="StopMacroButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>
