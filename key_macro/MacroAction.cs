@@ -5,6 +5,13 @@ namespace KeyMacro
 {
     public class MacroAction
     {
+        // 동작 타입 (Keyboard, MouseClick, MouseMouseMove)
+        public string ActionType { get; set; } = "Keyboard";
+
+        // 마우스 X, Y 좌표 (상대 좌표)
+        public int MouseX { get; set; } = 0;
+        public int MouseY { get; set; } = 0;
+
         // 입력할 키들의 가상 키 코드 목록 (동시 입력 지원)
         public List<ushort> VirtualKeys { get; set; } = new List<ushort>();
 
@@ -26,7 +33,18 @@ namespace KeyMacro
             get
             {
                 string repeatStr = RepeatCount > 1 ? $" (x{RepeatCount})" : "";
-                return $"[키: {KeysText}] -> 누름: {Duration:F1}초{repeatStr} | 대기: {DelayAfter:F1}초";
+                if (ActionType == "MouseClick")
+                {
+                    return $"[마우스 클릭: X={MouseX}, Y={MouseY}]{repeatStr} | 대기: {DelayAfter:F1}초";
+                }
+                else if (ActionType == "MouseMove")
+                {
+                    return $"[마우스 이동: X={MouseX}, Y={MouseY}]{repeatStr} | 대기: {DelayAfter:F1}초";
+                }
+                else
+                {
+                    return $"[키: {KeysText}] -> 누름: {Duration:F1}초{repeatStr} | 대기: {DelayAfter:F1}초";
+                }
             }
         }
     }

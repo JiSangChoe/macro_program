@@ -17,7 +17,10 @@ namespace KeyMacro
 {
     public partial class MainWindow : Window
     {
-        // P/Invoke for Hotkeys
+        // P/Invoke for Hotkeys and Cursor position control
+        [DllImport("user32.dll")]
+        private static extern bool SetCursorPos(int x, int y);
+
         [DllImport("user32.dll")]
         private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
 
@@ -27,6 +30,7 @@ namespace KeyMacro
         private const int HOTKEY_ID_START = 9000;
         private const int HOTKEY_ID_STOP = 9001;
         private const int HOTKEY_ID_PAUSE = 9002;
+        private const int HOTKEY_ID_PICKER = 9003;
 
         // Observable Collections for Data Binding
         private readonly ObservableCollection<MacroAction> _macroActions = new ObservableCollection<MacroAction>();
@@ -73,10 +77,11 @@ namespace KeyMacro
             base.OnSourceInitialized(e);
             IntPtr handle = new WindowInteropHelper(this).Handle;
 
-            // Register Hotkeys: F5 (0x74) for Start, F6 (0x75) for Stop, F7 (0x76) for Pause
+            // Register Hotkeys: F5 (0x74) for Start, F6 (0x75) for Stop, F7 (0x76) for Pause, F8 (0x77) for Coordinate Picker
             RegisterHotKey(handle, HOTKEY_ID_START, 0, 0x74);
             RegisterHotKey(handle, HOTKEY_ID_STOP, 0, 0x75);
             RegisterHotKey(handle, HOTKEY_ID_PAUSE, 0, 0x76);
+            RegisterHotKey(handle, HOTKEY_ID_PICKER, 0, 0x77);
 
             HwndSource source = HwndSource.FromHwnd(handle);
             source.AddHook(HwndHook);
@@ -103,6 +108,11 @@ namespace KeyMacro
                     TogglePauseMacro();
                     handled = true;
                 }
+                else if (id == HOTKEY_ID_PICKER)
+                {
+                    PickMouseCoordinate();
+                    handled = true;
+                }
             }
             return IntPtr.Zero;
         }
@@ -113,6 +123,7 @@ namespace KeyMacro
             UnregisterHotKey(handle, HOTKEY_ID_START);
             UnregisterHotKey(handle, HOTKEY_ID_STOP);
             UnregisterHotKey(handle, HOTKEY_ID_PAUSE);
+            UnregisterHotKey(handle, HOTKEY_ID_PICKER);
             _recorder.Dispose();
             base.OnClosed(e);
         }
@@ -380,18 +391,100 @@ namespace KeyMacro
             UpdateKeyInputTextBoxText();
         }
 
+        private void ActionTypeComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (KeyboardInputArea == null || MouseInputArea == null) return;
+            if (ActionTypeComboBox.SelectedItem is ComboBoxItem item)
+            {
+                string tag = item.Tag?.ToString() ?? "Keyboard";
+                if (tag == "Keyboard")
+                {
+                    KeyboardInputArea.Visibility = Visibility.Visible;
+                    MouseInputArea.Visibility = Visibility.Collapsed;
+                }
+                else
+                {
+                    KeyboardInputArea.Visibility = Visibility.Collapsed;
+                    MouseInputArea.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void ScrollViewer_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (sender is ScrollViewer scv)
+            {
+                scv.ScrollToVerticalOffset(scv.VerticalOffset - e.Delta);
+                e.Handled = true;
+            }
+        }
+
+        private void PickMouseCoordinate()
+        {
+            Win32Api.POINT pt;
+            if (Win32Api.GetCursorPos(out pt))
+            {
+                int relX = pt.X;
+                int relY = pt.Y;
+
+                // 대상 윈도우가 선택되어 있으면 상대좌표로 변환
+                if (WindowComboBox.SelectedItem is Win32Api.WindowInfo targetWin)
+                {
+                    Win32Api.GetWindowRect(targetWin.Handle, out var rect);
+                    relX -= rect.Left;
+                    relY -= rect.Top;
+                }
+
+                // 텍스트박스에 꽂아넣기
+                MouseXTextBox.Text = relX.ToString();
+                MouseYTextBox.Text = relY.ToString();
+
+                // 성공 사운드 피드백 및 상태바 피드백
+                System.Media.SystemSounds.Beep.Play();
+                StatusText.Text = $"마우스 상대 좌표 자동 캡처 완료: X={relX}, Y={relY}";
+                StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(129, 140, 248)); // 보라색
+            }
+        }
+
         private void AddActionButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentCustomKeys.Count == 0)
+            string actionType = "Keyboard";
+            if (ActionTypeComboBox.SelectedItem is ComboBoxItem comboItem)
             {
-                MessageBox.Show("동작할 키를 하나 이상 지정해주세요.", "키 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                actionType = comboItem.Tag?.ToString() ?? "Keyboard";
             }
 
-            if (!double.TryParse(DurationTextBox.Text, out double duration) || duration <= 0)
+            int mouseX = 0;
+            int mouseY = 0;
+            double duration = 0.1;
+
+            if (actionType == "Keyboard")
             {
-                MessageBox.Show("누르고 있을 시간은 0보다 큰 숫자여야 합니다 (예: 0.1).", "시간 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                if (_currentCustomKeys.Count == 0)
+                {
+                    MessageBox.Show("동작할 키를 하나 이상 지정해주세요.", "키 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(DurationTextBox.Text, out duration) || duration <= 0)
+                {
+                    MessageBox.Show("누르고 있을 시간은 0보다 큰 숫자여야 합니다 (예: 0.1).", "시간 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+            else // MouseClick or MouseMove
+            {
+                if (!int.TryParse(MouseXTextBox.Text, out mouseX))
+                {
+                    MessageBox.Show("마우스 X 좌표는 정수여야 합니다.", "좌표 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (!int.TryParse(MouseYTextBox.Text, out mouseY))
+                {
+                    MessageBox.Show("마우스 Y 좌표는 정수여야 합니다.", "좌표 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                duration = 0.0; // 마우스는 즉시 격발
             }
 
             if (!int.TryParse(RepeatTextBox.Text, out int repeat) || repeat <= 0)
@@ -408,8 +501,11 @@ namespace KeyMacro
 
             var action = new MacroAction
             {
-                VirtualKeys = _currentCustomKeys.ToList(),
-                KeysText = KeyInputTextBox.Text,
+                ActionType = actionType,
+                MouseX = mouseX,
+                MouseY = mouseY,
+                VirtualKeys = actionType == "Keyboard" ? _currentCustomKeys.ToList() : new List<ushort>(),
+                KeysText = actionType == "Keyboard" ? KeyInputTextBox.Text : string.Empty,
                 Duration = duration,
                 RepeatCount = repeat,
                 DelayAfter = delayAfter
@@ -427,7 +523,12 @@ namespace KeyMacro
             DurationTextBox.Text = "0.1";
             RepeatTextBox.Text = "1";
             DelayAfterTextBox.Text = "0.1";
+            MouseXTextBox.Text = "0";
+            MouseYTextBox.Text = "0";
             RandomDelayCheckBox.IsChecked = false;
+            ActionTypeComboBox.SelectedIndex = 0;
+            KeyboardInputArea.Visibility = Visibility.Visible;
+            MouseInputArea.Visibility = Visibility.Collapsed;
             MacroActionListView.SelectedItem = null;
         }
 
@@ -440,16 +541,43 @@ namespace KeyMacro
                 return;
             }
 
-            if (_currentCustomKeys.Count == 0)
+            string actionType = "Keyboard";
+            if (ActionTypeComboBox.SelectedItem is ComboBoxItem comboItem)
             {
-                MessageBox.Show("동작할 키를 하나 이상 지정해주세요.", "키 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                actionType = comboItem.Tag?.ToString() ?? "Keyboard";
             }
 
-            if (!double.TryParse(DurationTextBox.Text, out double duration) || duration <= 0)
+            int mouseX = 0;
+            int mouseY = 0;
+            double duration = 0.1;
+
+            if (actionType == "Keyboard")
             {
-                MessageBox.Show("누르고 있을 시간은 0보다 큰 숫자여야 합니다 (예: 0.1).", "시간 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                if (_currentCustomKeys.Count == 0)
+                {
+                    MessageBox.Show("동작할 키를 하나 이상 지정해주세요.", "키 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!double.TryParse(DurationTextBox.Text, out duration) || duration <= 0)
+                {
+                    MessageBox.Show("누르고 있을 시간은 0보다 큰 숫자여야 합니다 (예: 0.1).", "시간 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+            }
+            else // MouseClick or MouseMove
+            {
+                if (!int.TryParse(MouseXTextBox.Text, out mouseX))
+                {
+                    MessageBox.Show("마우스 X 좌표는 정수여야 합니다.", "좌표 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                if (!int.TryParse(MouseYTextBox.Text, out mouseY))
+                {
+                    MessageBox.Show("마우스 Y 좌표는 정수여야 합니다.", "좌표 입력 오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+                duration = 0.0;
             }
 
             if (!int.TryParse(RepeatTextBox.Text, out int repeat) || repeat <= 0)
@@ -516,13 +644,31 @@ namespace KeyMacro
         {
             if (MacroActionListView.SelectedItem is MacroAction action)
             {
-                _currentCustomKeys.Clear();
-                foreach (var vk in action.VirtualKeys)
+                // 동작 구분에 맞는 UI 콤보박스 값 및 토글 동기화
+                if (action.ActionType == "MouseClick")
                 {
-                    _currentCustomKeys.Add(vk);
+                    ActionTypeComboBox.SelectedIndex = 1;
+                    MouseXTextBox.Text = action.MouseX.ToString();
+                    MouseYTextBox.Text = action.MouseY.ToString();
                 }
-                UpdateKeyInputTextBoxText();
-                DurationTextBox.Text = action.Duration.ToString("F1");
+                else if (action.ActionType == "MouseMove")
+                {
+                    ActionTypeComboBox.SelectedIndex = 2;
+                    MouseXTextBox.Text = action.MouseX.ToString();
+                    MouseYTextBox.Text = action.MouseY.ToString();
+                }
+                else
+                {
+                    ActionTypeComboBox.SelectedIndex = 0;
+                    _currentCustomKeys.Clear();
+                    foreach (var vk in action.VirtualKeys)
+                    {
+                        _currentCustomKeys.Add(vk);
+                    }
+                    UpdateKeyInputTextBoxText();
+                    DurationTextBox.Text = action.Duration.ToString("F1");
+                }
+
                 RepeatTextBox.Text = action.RepeatCount.ToString();
                 DelayAfterTextBox.Text = action.DelayAfter.ToString("F1");
             }
@@ -543,7 +689,12 @@ namespace KeyMacro
             StartRecordButton.IsEnabled = false;
             StopRecordButton.IsEnabled = true;
 
-            _recorder.Start();
+            IntPtr targetHwnd = IntPtr.Zero;
+            if (WindowComboBox.SelectedItem is Win32Api.WindowInfo targetWin)
+            {
+                targetHwnd = targetWin.Handle;
+            }
+            _recorder.Start(targetHwnd);
         }
 
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
@@ -836,7 +987,10 @@ namespace KeyMacro
                     // 1. 실행 시작 시점 딱 한 번, 대상 윈도우를 최전면으로 활성화하고 0.5초 동안 대기하여 포커스 안착 보장
                     if (targetHwnd != IntPtr.Zero)
                     {
-                        Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
+                        if (Win32Api.IsIconic(targetHwnd))
+                        {
+                            Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
+                        }
                         Win32Api.SetForegroundWindow(targetHwnd);
                         await Task.Delay(500, token);
                     }
@@ -846,15 +1000,18 @@ namespace KeyMacro
                         // 2. 무한 루프 반복 시 혹시 포커스가 풀린 경우를 대비해 전면 배치 상태 유지
                         if (targetHwnd != IntPtr.Zero)
                         {
-                            Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
+                            if (Win32Api.IsIconic(targetHwnd))
+                            {
+                                Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
+                            }
                             Win32Api.SetForegroundWindow(targetHwnd);
                             await Task.Delay(200, token);
                         }
 
                         if (selectedTab == 0)
                         {
-                            // Manual Macro Run
-                            foreach (var action in _macroActions)
+                            // Manual Macro Run - 스냅샷 복사본 순회로 스레드 안전성 보장
+                            foreach (var action in _macroActions.ToList())
                             {
                                 token.ThrowIfCancellationRequested();
 
@@ -862,23 +1019,53 @@ namespace KeyMacro
                                 {
                                     token.ThrowIfCancellationRequested();
 
-                                    pressedKeys = action.VirtualKeys.ToList();
-                                    await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-                                    SendKeys(pressedKeys, true);
+                                    if (action.ActionType == "MouseClick" || action.ActionType == "MouseMove")
+                                    {
+                                        int targetX = action.MouseX;
+                                        int targetY = action.MouseY;
+                                        if (targetHwnd != IntPtr.Zero)
+                                        {
+                                            Win32Api.GetWindowRect(targetHwnd, out var rect);
+                                            targetX += rect.Left;
+                                            targetY += rect.Top;
+                                        }
 
-                                    await Task.Delay(GetRandomizedDelay(action.Duration, applyRandom), token);
+                                        await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
 
-                                    SendKeys(pressedKeys, false);
-                                    pressedKeys = new List<ushort>();
+                                        if (action.ActionType == "MouseClick")
+                                        {
+                                            await Task.Delay(20, token);
+                                            SendMouseClickEvent(Win32Api.MOUSEEVENTF_LEFTDOWN, targetX, targetY);
+                                            await Task.Delay(20, token);
+                                            SendMouseClickEvent(Win32Api.MOUSEEVENTF_LEFTUP, targetX, targetY);
+                                        }
+                                        else
+                                        {
+                                            SetCursorPos(targetX, targetY);
+                                        }
 
-                                    await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                        await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                    }
+                                    else // Keyboard Action
+                                    {
+                                        pressedKeys = action.VirtualKeys.ToList();
+                                        await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
+                                        SendKeys(pressedKeys, true);
+
+                                        await Task.Delay(GetRandomizedDelay(action.Duration, applyRandom), token);
+
+                                        SendKeys(pressedKeys, false);
+                                        pressedKeys = new List<ushort>();
+
+                                        await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                    }
                                 }
                             }
                         }
                         else if (selectedTab == 1)
                         {
-                            // Recorded Macro Run
-                            foreach (var evt in _recordedEvents)
+                            // Recorded Macro Run - 스냅샷 복사본 순회로 스레드 안전성 보장
+                            foreach (var evt in _recordedEvents.ToList())
                             {
                                 token.ThrowIfCancellationRequested();
 
@@ -887,19 +1074,48 @@ namespace KeyMacro
                                     await Task.Delay((int)(evt.TimeOffsetSeconds * 1000), token);
                                 }
 
-                                if (evt.IsKeyDown)
+                                if (evt.IsMouseEvent)
                                 {
-                                    if (!pressedKeys.Contains(evt.VirtualKey))
+                                    int targetX = evt.MouseX;
+                                    int targetY = evt.MouseY;
+                                    if (targetHwnd != IntPtr.Zero)
                                     {
-                                        pressedKeys.Add(evt.VirtualKey);
+                                        Win32Api.GetWindowRect(targetHwnd, out var rect);
+                                        targetX += rect.Left;
+                                        targetY += rect.Top;
                                     }
+
                                     await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-                                    SendKey(evt.VirtualKey, true);
+
+                                    if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_WHEEL)
+                                    {
+                                        SendMouseWheelEvent(evt.MouseEventFlags, evt.MouseData, targetX, targetY);
+                                    }
+                                    else if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_MOVE)
+                                    {
+                                        SetCursorPos(targetX, targetY);
+                                    }
+                                    else if (evt.MouseEventFlags != 0)
+                                    {
+                                        SendMouseClickEvent(evt.MouseEventFlags, targetX, targetY);
+                                    }
                                 }
-                                else
+                                else // Keyboard
                                 {
-                                    pressedKeys.Remove(evt.VirtualKey);
-                                    SendKey(evt.VirtualKey, false);
+                                    if (evt.IsKeyDown)
+                                    {
+                                        if (!pressedKeys.Contains(evt.VirtualKey))
+                                        {
+                                            pressedKeys.Add(evt.VirtualKey);
+                                        }
+                                        await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
+                                        SendKey(evt.VirtualKey, true);
+                                    }
+                                    else
+                                    {
+                                        pressedKeys.Remove(evt.VirtualKey);
+                                        SendKey(evt.VirtualKey, false);
+                                    }
                                 }
                             }
                         }
@@ -937,7 +1153,7 @@ namespace KeyMacro
 
                                 if (profile.ProfileType == "수동 매크로")
                                 {
-                                    foreach (var action in profile.ManualActions)
+                                    foreach (var action in profile.ManualActions.ToList())
                                     {
                                         token.ThrowIfCancellationRequested();
 
@@ -945,22 +1161,52 @@ namespace KeyMacro
                                         {
                                             token.ThrowIfCancellationRequested();
 
-                                            pressedKeys = action.VirtualKeys.ToList();
-                                            await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-                                            SendKeys(pressedKeys, true);
+                                            if (action.ActionType == "MouseClick" || action.ActionType == "MouseMove")
+                                            {
+                                                int targetX = action.MouseX;
+                                                int targetY = action.MouseY;
+                                                if (targetHwnd != IntPtr.Zero)
+                                                {
+                                                    Win32Api.GetWindowRect(targetHwnd, out var rect);
+                                                    targetX += rect.Left;
+                                                    targetY += rect.Top;
+                                                }
 
-                                            await Task.Delay(GetRandomizedDelay(action.Duration, applyRandom), token);
+                                                await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
 
-                                            SendKeys(pressedKeys, false);
-                                            pressedKeys = new List<ushort>();
+                                                if (action.ActionType == "MouseClick")
+                                                {
+                                                    await Task.Delay(20, token);
+                                                    SendMouseClickEvent(Win32Api.MOUSEEVENTF_LEFTDOWN, targetX, targetY);
+                                                    await Task.Delay(20, token);
+                                                    SendMouseClickEvent(Win32Api.MOUSEEVENTF_LEFTUP, targetX, targetY);
+                                                }
+                                                else
+                                                {
+                                                    SetCursorPos(targetX, targetY);
+                                                }
 
-                                            await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                                await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                            }
+                                            else // Keyboard Action
+                                            {
+                                                pressedKeys = action.VirtualKeys.ToList();
+                                                await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
+                                                SendKeys(pressedKeys, true);
+
+                                                await Task.Delay(GetRandomizedDelay(action.Duration, applyRandom), token);
+
+                                                SendKeys(pressedKeys, false);
+                                                pressedKeys = new List<ushort>();
+
+                                                await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                            }
                                         }
                                     }
                                 }
                                 else // Recorded Profile Run
                                 {
-                                    foreach (var evt in profile.RecordedEvents)
+                                    foreach (var evt in profile.RecordedEvents.ToList())
                                     {
                                         token.ThrowIfCancellationRequested();
 
@@ -969,19 +1215,48 @@ namespace KeyMacro
                                             await Task.Delay((int)(evt.TimeOffsetSeconds * 1000), token);
                                         }
 
-                                        if (evt.IsKeyDown)
+                                        if (evt.IsMouseEvent)
                                         {
-                                            if (!pressedKeys.Contains(evt.VirtualKey))
+                                            int targetX = evt.MouseX;
+                                            int targetY = evt.MouseY;
+                                            if (targetHwnd != IntPtr.Zero)
                                             {
-                                                pressedKeys.Add(evt.VirtualKey);
+                                                Win32Api.GetWindowRect(targetHwnd, out var rect);
+                                                targetX += rect.Left;
+                                                targetY += rect.Top;
                                             }
+
                                             await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-                                            SendKey(evt.VirtualKey, true);
+
+                                            if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_WHEEL)
+                                            {
+                                                SendMouseWheelEvent(evt.MouseEventFlags, evt.MouseData, targetX, targetY);
+                                            }
+                                            else if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_MOVE)
+                                            {
+                                                SetCursorPos(targetX, targetY);
+                                            }
+                                            else if (evt.MouseEventFlags != 0)
+                                            {
+                                                SendMouseClickEvent(evt.MouseEventFlags, targetX, targetY);
+                                            }
                                         }
-                                        else
+                                        else // Keyboard
                                         {
-                                            pressedKeys.Remove(evt.VirtualKey);
-                                            SendKey(evt.VirtualKey, false);
+                                            if (evt.IsKeyDown)
+                                            {
+                                                if (!pressedKeys.Contains(evt.VirtualKey))
+                                                {
+                                                    pressedKeys.Add(evt.VirtualKey);
+                                                }
+                                                await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
+                                                SendKey(evt.VirtualKey, true);
+                                            }
+                                            else
+                                            {
+                                                pressedKeys.Remove(evt.VirtualKey);
+                                                SendKey(evt.VirtualKey, false);
+                                            }
                                         }
                                     }
                                 }
@@ -1058,6 +1333,41 @@ namespace KeyMacro
         private void StopMacroButton_Click(object sender, RoutedEventArgs e)
         {
             StopMacro();
+        }
+
+        private static void SendMouseClickEvent(uint flags, int screenX, int screenY)
+        {
+            SetCursorPos(screenX, screenY);
+
+            double screenWidth = SystemParameters.PrimaryScreenWidth;
+            double screenHeight = SystemParameters.PrimaryScreenHeight;
+            int absoluteX = (int)Math.Round((screenX * 65536.0) / screenWidth);
+            int absoluteY = (int)Math.Round((screenY * 65536.0) / screenHeight);
+
+            Win32Api.INPUT[] inputs = new Win32Api.INPUT[1];
+            inputs[0].type = Win32Api.INPUT_MOUSE;
+            inputs[0].U.mi.dx = absoluteX;
+            inputs[0].U.mi.dy = absoluteY;
+            inputs[0].U.mi.dwFlags = flags | Win32Api.MOUSEEVENTF_ABSOLUTE;
+            Win32Api.SendInput(1, inputs, Marshal.SizeOf(typeof(Win32Api.INPUT)));
+        }
+
+        private static void SendMouseWheelEvent(uint flags, uint mouseData, int screenX, int screenY)
+        {
+            SetCursorPos(screenX, screenY);
+
+            double screenWidth = SystemParameters.PrimaryScreenWidth;
+            double screenHeight = SystemParameters.PrimaryScreenHeight;
+            int absoluteX = (int)Math.Round((screenX * 65536.0) / screenWidth);
+            int absoluteY = (int)Math.Round((screenY * 65536.0) / screenHeight);
+
+            Win32Api.INPUT[] inputs = new Win32Api.INPUT[1];
+            inputs[0].type = Win32Api.INPUT_MOUSE;
+            inputs[0].U.mi.dx = absoluteX;
+            inputs[0].U.mi.dy = absoluteY;
+            inputs[0].U.mi.dwFlags = flags | Win32Api.MOUSEEVENTF_ABSOLUTE;
+            inputs[0].U.mi.mouseData = mouseData;
+            Win32Api.SendInput(1, inputs, Marshal.SizeOf(typeof(Win32Api.INPUT)));
         }
 
         // ------------------ SendInput Helper Methods ------------------
