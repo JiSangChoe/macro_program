@@ -11,6 +11,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Threading;
 
 namespace KeyMacro
 {
@@ -25,19 +26,26 @@ namespace KeyMacro
 
         private const int HOTKEY_ID_START = 9000;
         private const int HOTKEY_ID_STOP = 9001;
+        private const int HOTKEY_ID_PAUSE = 9002;
 
         // Observable Collections for Data Binding
         private readonly ObservableCollection<MacroAction> _macroActions = new ObservableCollection<MacroAction>();
         private readonly ObservableCollection<RecordedKeyEvent> _recordedEvents = new ObservableCollection<RecordedKeyEvent>();
         private readonly ObservableCollection<Win32Api.WindowInfo> _windows = new ObservableCollection<Win32Api.WindowInfo>();
         private readonly ObservableCollection<MacroProfile> _profiles = new ObservableCollection<MacroProfile>();
+        private readonly ObservableCollection<MacroProfile> _sequencerQueue = new ObservableCollection<MacroProfile>();
 
         private readonly MacroRecorder _recorder = new MacroRecorder();
         private readonly HashSet<ushort> _currentCustomKeys = new HashSet<ushort>();
+        private static readonly Random _random = new Random();
 
         private CancellationTokenSource? _macroCts;
         private bool _isMacroRunning = false;
+        private bool _isMacroPaused = false;
         private MacroProfile? _activeProfile = null;
+
+        private Stopwatch? _macroRuntimeStopwatch;
+        private DispatcherTimer? _macroRuntimeTimer;
 
         public MainWindow()
         {
@@ -47,6 +55,8 @@ namespace KeyMacro
             MacroActionListView.ItemsSource = _macroActions;
             WindowComboBox.ItemsSource = _windows;
             ProfileComboBox.ItemsSource = _profiles;
+            SequencerAvailableProfilesListView.ItemsSource = _profiles;
+            SequencerQueueListView.ItemsSource = _sequencerQueue;
 
             // Setup Recorder Events
             _recorder.Tick += Recorder_Tick;
@@ -63,9 +73,10 @@ namespace KeyMacro
             base.OnSourceInitialized(e);
             IntPtr handle = new WindowInteropHelper(this).Handle;
 
-            // Register Hotkeys: F5 (0x74) for Start, F6 (0x75) for Stop
+            // Register Hotkeys: F5 (0x74) for Start, F6 (0x75) for Stop, F7 (0x76) for Pause
             RegisterHotKey(handle, HOTKEY_ID_START, 0, 0x74);
             RegisterHotKey(handle, HOTKEY_ID_STOP, 0, 0x75);
+            RegisterHotKey(handle, HOTKEY_ID_PAUSE, 0, 0x76);
 
             HwndSource source = HwndSource.FromHwnd(handle);
             source.AddHook(HwndHook);
@@ -87,6 +98,11 @@ namespace KeyMacro
                     StopMacro();
                     handled = true;
                 }
+                else if (id == HOTKEY_ID_PAUSE)
+                {
+                    TogglePauseMacro();
+                    handled = true;
+                }
             }
             return IntPtr.Zero;
         }
@@ -96,6 +112,7 @@ namespace KeyMacro
             IntPtr handle = new WindowInteropHelper(this).Handle;
             UnregisterHotKey(handle, HOTKEY_ID_START);
             UnregisterHotKey(handle, HOTKEY_ID_STOP);
+            UnregisterHotKey(handle, HOTKEY_ID_PAUSE);
             _recorder.Dispose();
             base.OnClosed(e);
         }
@@ -273,6 +290,16 @@ namespace KeyMacro
             {
                 _profiles.Remove(profile);
                 ProfileManager.SaveProfiles(_profiles.ToList());
+
+                // 통합 실행 순서 조합 큐에서도 삭제된 프로필을 완전 연쇄 제거 (버그 해결)
+                for (int i = _sequencerQueue.Count - 1; i >= 0; i--)
+                {
+                    if (_sequencerQueue[i].Name.Equals(profile.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _sequencerQueue.RemoveAt(i);
+                    }
+                }
+
                 _activeProfile = null;
                 ProfileNameTextBox.Clear();
                 if (_profiles.Count > 0)
@@ -400,6 +427,7 @@ namespace KeyMacro
             DurationTextBox.Text = "0.1";
             RepeatTextBox.Text = "1";
             DelayAfterTextBox.Text = "0.1";
+            RandomDelayCheckBox.IsChecked = false;
             MacroActionListView.SelectedItem = null;
         }
 
@@ -544,7 +572,7 @@ namespace KeyMacro
             StopRecordButton.IsEnabled = false;
             RecordStatusText.Text = "녹화 완료 및 저장 대기";
             RecordStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
-            RecordTimerText.Text = "남은 녹화 시간: 05:00";
+            RecordTimerText.Text = "남은 녹화 시간: 10:00";
 
             // 카드 색상 원래 상태(다크 블루)로 원복
             RecordInfoCard.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(22, 22, 46));
@@ -676,6 +704,11 @@ namespace KeyMacro
                 MessageBox.Show("녹화된 키 입력 시퀀스가 비어 있습니다.", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
+            if (MainTabControl.SelectedIndex == 2 && _sequencerQueue.Count == 0)
+            {
+                MessageBox.Show("통합 매크로 시퀀스 목록이 비어 있습니다.", "실행 불가", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
 
             // 수동 매크로 실행 전 미저장 상태인 경우 저장 유도
             if (MainTabControl.SelectedIndex == 0 && IsManualMacroDirty())
@@ -752,9 +785,32 @@ namespace KeyMacro
             }
 
             _isMacroRunning = true;
+            _isMacroPaused = false;
             StatusText.Text = "매크로 동작 실행 중...";
             StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
             StartMacroButton.IsEnabled = false;
+            PauseMacroButton.IsEnabled = true;
+            PauseMacroButton.Content = "일시정지 (F7)";
+
+            // 런타임 타이머 셋팅 및 시작
+            MacroTimerText.Text = "실행 시간: 0.0초";
+            _macroRuntimeStopwatch = new Stopwatch();
+            _macroRuntimeStopwatch.Start();
+            _macroRuntimeTimer = new DispatcherTimer();
+            _macroRuntimeTimer.Interval = TimeSpan.FromMilliseconds(100);
+            _macroRuntimeTimer.Tick += (s, e) =>
+            {
+                if (_isMacroPaused)
+                {
+                    if (_macroRuntimeStopwatch.IsRunning) _macroRuntimeStopwatch.Stop();
+                }
+                else
+                {
+                    if (!_macroRuntimeStopwatch.IsRunning) _macroRuntimeStopwatch.Start();
+                }
+                MacroTimerText.Text = $"실행 시간: {_macroRuntimeStopwatch.Elapsed.TotalSeconds:F1}초";
+            };
+            _macroRuntimeTimer.Start();
 
             _macroCts = new CancellationTokenSource();
             var token = _macroCts.Token;
@@ -768,6 +824,8 @@ namespace KeyMacro
 
             int selectedTab = MainTabControl.SelectedIndex;
             bool isLoop = LoopMacroCheckBox.IsChecked == true;
+            bool applyRandom = RandomDelayCheckBox.IsChecked == true;
+            bool isRandomMode = SequencerRandomRadio.IsChecked == true;
 
             Task.Run(async () =>
             {
@@ -775,13 +833,22 @@ namespace KeyMacro
 
                 try
                 {
+                    // 1. 실행 시작 시점 딱 한 번, 대상 윈도우를 최전면으로 활성화하고 0.5초 동안 대기하여 포커스 안착 보장
+                    if (targetHwnd != IntPtr.Zero)
+                    {
+                        Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
+                        Win32Api.SetForegroundWindow(targetHwnd);
+                        await Task.Delay(500, token);
+                    }
+
                     do
                     {
+                        // 2. 무한 루프 반복 시 혹시 포커스가 풀린 경우를 대비해 전면 배치 상태 유지
                         if (targetHwnd != IntPtr.Zero)
                         {
                             Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
                             Win32Api.SetForegroundWindow(targetHwnd);
-                            await Task.Delay(300, token);
+                            await Task.Delay(200, token);
                         }
 
                         if (selectedTab == 0)
@@ -795,19 +862,20 @@ namespace KeyMacro
                                 {
                                     token.ThrowIfCancellationRequested();
 
-                                    pressedKeys = action.VirtualKeys;
+                                    pressedKeys = action.VirtualKeys.ToList();
+                                    await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
                                     SendKeys(pressedKeys, true);
 
-                                    await Task.Delay((int)(action.Duration * 1000), token);
+                                    await Task.Delay(GetRandomizedDelay(action.Duration, applyRandom), token);
 
                                     SendKeys(pressedKeys, false);
                                     pressedKeys = new List<ushort>();
 
-                                    await Task.Delay((int)(action.DelayAfter * 1000), token);
+                                    await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
                                 }
                             }
                         }
-                        else
+                        else if (selectedTab == 1)
                         {
                             // Recorded Macro Run
                             foreach (var evt in _recordedEvents)
@@ -825,6 +893,7 @@ namespace KeyMacro
                                     {
                                         pressedKeys.Add(evt.VirtualKey);
                                     }
+                                    await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
                                     SendKey(evt.VirtualKey, true);
                                 }
                                 else
@@ -832,6 +901,93 @@ namespace KeyMacro
                                     pressedKeys.Remove(evt.VirtualKey);
                                     SendKey(evt.VirtualKey, false);
                                 }
+                            }
+                        }
+                        else
+                        {
+                            // Master Sequencer Run
+                            List<MacroProfile> currentQueue;
+                            if (isRandomMode)
+                            {
+                                currentQueue = _sequencerQueue.OrderBy(x => _random.Next()).ToList();
+                            }
+                            else
+                            {
+                                currentQueue = _sequencerQueue.ToList();
+                            }
+
+                            for (int i = 0; i < currentQueue.Count; i++)
+                            {
+                                var profile = currentQueue[i];
+                                token.ThrowIfCancellationRequested();
+
+                                // 프로필 시작 전 윈도우 가상 키 버퍼를 완전히 리셋하여 Shift 등 물림 제거
+                                ReleaseAllPossibleKeys();
+
+                                // 실행 중인 순서 조합 리스트뷰 포커싱 및 스크롤 추적 (원본 큐 내의 인덱스를 찾아 하이라이트 매칭)
+                                Dispatcher.Invoke(() =>
+                                {
+                                    int originalIdx = _sequencerQueue.IndexOf(profile);
+                                    if (originalIdx >= 0)
+                                    {
+                                        SequencerQueueListView.SelectedIndex = originalIdx;
+                                        SequencerQueueListView.ScrollIntoView(profile);
+                                    }
+                                });
+
+                                if (profile.ProfileType == "수동 매크로")
+                                {
+                                    foreach (var action in profile.ManualActions)
+                                    {
+                                        token.ThrowIfCancellationRequested();
+
+                                        for (int r = 0; r < action.RepeatCount; r++)
+                                        {
+                                            token.ThrowIfCancellationRequested();
+
+                                            pressedKeys = action.VirtualKeys.ToList();
+                                            await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
+                                            SendKeys(pressedKeys, true);
+
+                                            await Task.Delay(GetRandomizedDelay(action.Duration, applyRandom), token);
+
+                                            SendKeys(pressedKeys, false);
+                                            pressedKeys = new List<ushort>();
+
+                                            await Task.Delay(GetRandomizedDelay(action.DelayAfter, applyRandom), token);
+                                        }
+                                    }
+                                }
+                                else // Recorded Profile Run
+                                {
+                                    foreach (var evt in profile.RecordedEvents)
+                                    {
+                                        token.ThrowIfCancellationRequested();
+
+                                        if (evt.TimeOffsetSeconds > 0)
+                                        {
+                                            await Task.Delay((int)(evt.TimeOffsetSeconds * 1000), token);
+                                        }
+
+                                        if (evt.IsKeyDown)
+                                        {
+                                            if (!pressedKeys.Contains(evt.VirtualKey))
+                                            {
+                                                pressedKeys.Add(evt.VirtualKey);
+                                            }
+                                            await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
+                                            SendKey(evt.VirtualKey, true);
+                                        }
+                                        else
+                                        {
+                                            pressedKeys.Remove(evt.VirtualKey);
+                                            SendKey(evt.VirtualKey, false);
+                                        }
+                                    }
+                                }
+                                
+                                // 프로필 전환 간 0.3초 쿨다운 지연을 주어 윈도우 OS 한영 입력기 안착 보장
+                                await Task.Delay(300, token);
                             }
                         }
 
@@ -877,7 +1033,21 @@ namespace KeyMacro
         private void ResetMacroControlState()
         {
             _isMacroRunning = false;
+            _isMacroPaused = false;
+
+            // 매크로 정지/종료 시 혹시 눌려 있을지 모르는 모든 가상 키 강제 릴리즈
+            ReleaseAllPossibleKeys();
+
+            _macroRuntimeTimer?.Stop();
+            _macroRuntimeStopwatch?.Stop();
+            if (_macroRuntimeStopwatch != null)
+            {
+                MacroTimerText.Text = $"실행 시간: {_macroRuntimeStopwatch.Elapsed.TotalSeconds:F1}초 (종료)";
+            }
+
             StartMacroButton.IsEnabled = true;
+            PauseMacroButton.IsEnabled = false;
+            PauseMacroButton.Content = "일시정지 (F7)";
         }
 
         private void StartMacroButton_Click(object sender, RoutedEventArgs e)
@@ -933,9 +1103,156 @@ namespace KeyMacro
             SendKeys(vks, false);
         }
 
+        private static void ReleaseAllPossibleKeys()
+        {
+            List<ushort> keysToRelease = new List<ushort> { 0x10, 0x11, 0x12, 0x5B, 0x5C }; // Shift, Ctrl, Alt, Win
+            for (ushort vk = 8; vk <= 190; vk++)
+            {
+                // 토글 및 시스템 오작동 방지를 위해 특정 기능키 릴리즈 제외:
+                // - 한영키(0x15), 한자키(0x19), CapsLock(0x14)
+                // - Apps(메뉴/컨텍스트)키(0x5D), F10(0x79) - 단독/조합 시 우클릭 컨텍스트 메뉴 유입 차단
+                // - F12(0x7B) - 개발자 도구 팝업 방지
+                if (vk == 0x15 || vk == 0x19 || vk == 0x14 || vk == 0x5D || vk == 0x79 || vk == 0x7B) continue;
+
+                keysToRelease.Add(vk);
+            }
+            SendKeys(keysToRelease, false);
+        }
+
         private static bool IsExtendedKey(ushort vk)
         {
             return (vk >= 33 && vk <= 46) || (vk >= 91 && vk <= 93);
+        }
+
+        private async Task EnsureTargetWindowFocused(IntPtr targetHwnd, List<ushort> pressedKeys, CancellationToken token)
+        {
+            // 수동 일시정지 혹은 포커스 상실 상태이면 루프 진입
+            if (_isMacroPaused || (targetHwnd != IntPtr.Zero && Win32Api.GetForegroundWindow() != targetHwnd))
+            {
+                // 포커스/동작 중지되는 순간 키 꼬임 예방을 위해 모든 눌림 키 강제 해제
+                if (pressedKeys.Count > 0)
+                {
+                    ReleaseKeys(pressedKeys);
+                }
+
+                while (_isMacroPaused || (targetHwnd != IntPtr.Zero && Win32Api.GetForegroundWindow() != targetHwnd))
+                {
+                    token.ThrowIfCancellationRequested();
+
+                    Dispatcher.Invoke(() =>
+                    {
+                        if (_isMacroPaused)
+                        {
+                            StatusText.Text = "수동 일시정지 중 (F7로 이어하기)";
+                            StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11)); // 주황색
+                        }
+                        else
+                        {
+                            StatusText.Text = "대상 창 포커스 상실 - 일시정지 중...";
+                            StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(239, 68, 68)); // 빨강
+                        }
+                    });
+
+                    await Task.Delay(150, token);
+                }
+
+                Dispatcher.Invoke(() =>
+                {
+                    StatusText.Text = "매크로 동작 실행 중...";
+                    StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
+                });
+
+                // 복귀 지연 안착
+                await Task.Delay(200, token);
+            }
+        }
+
+        private static int GetRandomizedDelay(double seconds, bool applyRandom)
+        {
+            int baseMs = (int)(seconds * 1000);
+            if (baseMs <= 0) return 0;
+            if (!applyRandom) return baseMs;
+
+            // ±12%의 미세 오차 난수 가산 (88% ~ 112% 범위)
+            double factor = 0.88 + (_random.NextDouble() * 0.24);
+            return (int)(baseMs * factor);
+        }
+
+        private void SequencerAddButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SequencerAvailableProfilesListView.SelectedItem is MacroProfile profile)
+            {
+                _sequencerQueue.Add(profile);
+                StatusText.Text = $"시퀀스 목록에 '{profile.Name}' 추가 완료";
+                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+            }
+            else
+            {
+                MessageBox.Show("추가할 프로필을 선택해 주세요.", "선택 누락", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void SequencerRemoveButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (SequencerQueueListView.SelectedItem is MacroProfile profile)
+            {
+                _sequencerQueue.Remove(profile);
+                StatusText.Text = $"시퀀스 목록에서 '{profile.Name}' 제거 완료";
+                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(239, 68, 68));
+            }
+            else
+            {
+                MessageBox.Show("삭제할 시퀀스 항목을 선택해 주세요.", "선택 누락", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void SequencerMoveUpButton_Click(object sender, RoutedEventArgs e)
+        {
+            int index = SequencerQueueListView.SelectedIndex;
+            if (index > 0)
+            {
+                var selected = _sequencerQueue[index];
+                _sequencerQueue.RemoveAt(index);
+                _sequencerQueue.Insert(index - 1, selected);
+                SequencerQueueListView.SelectedIndex = index - 1;
+            }
+        }
+
+        private void SequencerMoveDownButton_Click(object sender, RoutedEventArgs e)
+        {
+            int index = SequencerQueueListView.SelectedIndex;
+            if (index >= 0 && index < _sequencerQueue.Count - 1)
+            {
+                var selected = _sequencerQueue[index];
+                _sequencerQueue.RemoveAt(index);
+                _sequencerQueue.Insert(index + 1, selected);
+                SequencerQueueListView.SelectedIndex = index + 1;
+            }
+        }
+
+        private void TogglePauseMacro()
+        {
+            if (!_isMacroRunning) return;
+
+            _isMacroPaused = !_isMacroPaused;
+
+            if (_isMacroPaused)
+            {
+                PauseMacroButton.Content = "이어하기 (F7)";
+                StatusText.Text = "수동 일시정지 중 (F7로 이어하기)";
+                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // 주황색
+            }
+            else
+            {
+                PauseMacroButton.Content = "일시정지 (F7)";
+                StatusText.Text = "매크로 동작 실행 중...";
+                StatusText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // 주황색
+            }
+        }
+
+        private void PauseMacroButton_Click(object sender, RoutedEventArgs e)
+        {
+            TogglePauseMacro();
         }
     }
 }

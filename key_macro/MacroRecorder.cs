@@ -11,6 +11,7 @@ namespace KeyMacro
         private IntPtr _hookId = IntPtr.Zero;
         private Win32Api.LowLevelKeyboardProc? _proc;
         private List<RecordedKeyEvent> _recordedEvents = new List<RecordedKeyEvent>();
+        private HashSet<ushort> _pressedKeys = new HashSet<ushort>();
         private Stopwatch _stopwatch = new Stopwatch();
         private double _lastEventTime = 0;
         private DispatcherTimer? _limitTimer;
@@ -28,6 +29,7 @@ namespace KeyMacro
             if (_isRecording) return;
             _isRecording = true;
             _recordedEvents.Clear();
+            _pressedKeys.Clear();
             _stopwatch.Restart();
             _lastEventTime = 0;
 
@@ -44,14 +46,14 @@ namespace KeyMacro
                 );
             }
 
-            // 최대 5분(300초) 제한 타이머
+            // 최대 10분(600초) 제한 타이머
             _limitTimer = new DispatcherTimer();
             _limitTimer.Interval = TimeSpan.FromSeconds(1);
             _limitTimer.Tick += (s, e) =>
             {
                 double elapsed = _stopwatch.Elapsed.TotalSeconds;
-                Tick?.Invoke(300 - elapsed);
-                if (elapsed >= 300)
+                Tick?.Invoke(600 - elapsed);
+                if (elapsed >= 600)
                 {
                     Stop();
                 }
@@ -86,13 +88,29 @@ namespace KeyMacro
                 if (isKeyDown || isKeyUp)
                 {
                     int vkCode = Marshal.ReadInt32(lParam);
+                    ushort key = (ushort)vkCode;
+
+                    if (isKeyDown)
+                    {
+                        // 이미 누름 상태(Auto-Repeat)이면 중복 무시
+                        if (_pressedKeys.Contains(key))
+                        {
+                            return Win32Api.CallNextHookEx(_hookId, nCode, wParam, lParam);
+                        }
+                        _pressedKeys.Add(key);
+                    }
+                    else if (isKeyUp)
+                    {
+                        _pressedKeys.Remove(key);
+                    }
+
                     double currentTime = _stopwatch.Elapsed.TotalSeconds;
                     double offset = currentTime - _lastEventTime;
                     _lastEventTime = currentTime;
 
                     _recordedEvents.Add(new RecordedKeyEvent
                     {
-                        VirtualKey = (ushort)vkCode,
+                        VirtualKey = key,
                         IsKeyDown = isKeyDown,
                         TimeOffsetSeconds = offset
                     });
