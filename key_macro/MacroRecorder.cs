@@ -31,7 +31,7 @@ namespace KeyMacro
         public List<RecordedKeyEvent> RecordedEvents => _recordedEvents;
         public bool IsRecording => _isRecording;
 
-        public void Start(IntPtr targetHwnd)
+        public void Start(IntPtr targetHwnd, bool recordKeyboard = true, bool recordMouse = true)
         {
             if (_isRecording) return;
             _isRecording = true;
@@ -44,26 +44,32 @@ namespace KeyMacro
             _lastRecordedMouseY = -9999;
 
             // 글로벌 훅 설치
-            _proc = HookCallback;
             using (Process curProcess = Process.GetCurrentProcess())
             using (ProcessModule curModule = curProcess.MainModule!)
             {
                 IntPtr modHandle = Win32Api.GetModuleHandle(curModule.ModuleName!);
-                _hookId = Win32Api.SetWindowsHookEx(
-                    Win32Api.WH_KEYBOARD_LL,
-                    _proc,
-                    modHandle,
-                    0
-                );
 
-                // 마우스 훅 설치
-                _mouseProc = HookMouseCallback;
-                _mouseHookId = Win32Api.SetWindowsHookExMouse(
-                    Win32Api.WH_MOUSE_LL,
-                    _mouseProc,
-                    modHandle,
-                    0
-                );
+                if (recordKeyboard)
+                {
+                    _proc = HookCallback;
+                    _hookId = Win32Api.SetWindowsHookEx(
+                        Win32Api.WH_KEYBOARD_LL,
+                        _proc,
+                        modHandle,
+                        0
+                    );
+                }
+
+                if (recordMouse)
+                {
+                    _mouseProc = HookMouseCallback;
+                    _mouseHookId = Win32Api.SetWindowsHookExMouse(
+                        Win32Api.WH_MOUSE_LL,
+                        _mouseProc,
+                        modHandle,
+                        0
+                    );
+                }
             }
 
             // 최대 10분(600초) 제한 타이머

@@ -31,6 +31,8 @@ namespace KeyMacro
         private const int HOTKEY_ID_STOP = 9001;
         private const int HOTKEY_ID_PAUSE = 9002;
         private const int HOTKEY_ID_PICKER = 9003;
+        private const int HOTKEY_ID_REC_START = 9004;
+        private const int HOTKEY_ID_REC_STOP = 9005;
 
         // Observable Collections for Data Binding
         private readonly ObservableCollection<MacroAction> _macroActions = new ObservableCollection<MacroAction>();
@@ -77,11 +79,13 @@ namespace KeyMacro
             base.OnSourceInitialized(e);
             IntPtr handle = new WindowInteropHelper(this).Handle;
 
-            // Register Hotkeys: F5 (0x74) for Start, F6 (0x75) for Stop, F7 (0x76) for Pause, F8 (0x77) for Coordinate Picker
-            RegisterHotKey(handle, HOTKEY_ID_START, 0, 0x74);
-            RegisterHotKey(handle, HOTKEY_ID_STOP, 0, 0x75);
-            RegisterHotKey(handle, HOTKEY_ID_PAUSE, 0, 0x76);
-            RegisterHotKey(handle, HOTKEY_ID_PICKER, 0, 0x77);
+            // Register Hotkeys: Ctrl+F1(Rec Start), Ctrl+F2(Rec Stop), Ctrl+F3(Start), Ctrl+F4(Pause), Ctrl+F5(Stop), Ctrl+F6(Picker)
+            RegisterHotKey(handle, HOTKEY_ID_REC_START, 0x0002, 0x70);
+            RegisterHotKey(handle, HOTKEY_ID_REC_STOP, 0x0002, 0x71);
+            RegisterHotKey(handle, HOTKEY_ID_START, 0x0002, 0x72);
+            RegisterHotKey(handle, HOTKEY_ID_PAUSE, 0x0002, 0x73);
+            RegisterHotKey(handle, HOTKEY_ID_STOP, 0x0002, 0x74);
+            RegisterHotKey(handle, HOTKEY_ID_PICKER, 0x0002, 0x75);
 
             HwndSource source = HwndSource.FromHwnd(handle);
             source.AddHook(HwndHook);
@@ -113,6 +117,22 @@ namespace KeyMacro
                     PickMouseCoordinate();
                     handled = true;
                 }
+                else if (id == HOTKEY_ID_REC_START)
+                {
+                    if (StartRecordButton.IsEnabled)
+                    {
+                        StartRecordButton_Click(this, new System.Windows.RoutedEventArgs());
+                    }
+                    handled = true;
+                }
+                else if (id == HOTKEY_ID_REC_STOP)
+                {
+                    if (StopRecordButton.IsEnabled)
+                    {
+                        StopRecordButton_Click(this, new System.Windows.RoutedEventArgs());
+                    }
+                    handled = true;
+                }
             }
             return IntPtr.Zero;
         }
@@ -124,6 +144,8 @@ namespace KeyMacro
             UnregisterHotKey(handle, HOTKEY_ID_STOP);
             UnregisterHotKey(handle, HOTKEY_ID_PAUSE);
             UnregisterHotKey(handle, HOTKEY_ID_PICKER);
+            UnregisterHotKey(handle, HOTKEY_ID_REC_START);
+            UnregisterHotKey(handle, HOTKEY_ID_REC_STOP);
             _recorder.Dispose();
             base.OnClosed(e);
         }
@@ -639,7 +661,6 @@ namespace KeyMacro
                 MacroActionListView.SelectedIndex = index + 1;
             }
         }
-
         private void MacroActionListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (MacroActionListView.SelectedItem is MacroAction action)
@@ -689,12 +710,29 @@ namespace KeyMacro
             StartRecordButton.IsEnabled = false;
             StopRecordButton.IsEnabled = true;
 
+            bool kbRecord = RecordKeyboardCheckBox.IsChecked == true;
+            bool msRecord = RecordMouseCheckBox.IsChecked == true;
+
+            if (!kbRecord && !msRecord)
+            {
+                MessageBox.Show("녹화 대상(키보드 또는 마우스)을 최소 하나 이상 선택해야 합니다.", "녹화 대상 미지정", MessageBoxButton.OK, MessageBoxImage.Warning);
+                
+                // UI 롤백
+                RecordStatusText.Text = "대기 중";
+                RecordStatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(16, 185, 129));
+                RecordInfoCard.Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(22, 22, 46));
+                RecordInfoCard.BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(49, 46, 129));
+                StartRecordButton.IsEnabled = true;
+                StopRecordButton.IsEnabled = false;
+                return;
+            }
+
             IntPtr targetHwnd = IntPtr.Zero;
             if (WindowComboBox.SelectedItem is Win32Api.WindowInfo targetWin)
             {
                 targetHwnd = targetWin.Handle;
             }
-            _recorder.Start(targetHwnd);
+            _recorder.Start(targetHwnd, kbRecord, msRecord);
         }
 
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
@@ -941,7 +979,7 @@ namespace KeyMacro
             StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11));
             StartMacroButton.IsEnabled = false;
             PauseMacroButton.IsEnabled = true;
-            PauseMacroButton.Content = "일시정지 (F7)";
+            PauseMacroButton.Content = "일시정지 (Ctrl+F4)";
 
             // 런타임 타이머 셋팅 및 시작
             MacroTimerText.Text = "실행 시간: 0.0초";
@@ -987,24 +1025,15 @@ namespace KeyMacro
                     // 1. 실행 시작 시점 딱 한 번, 대상 윈도우를 최전면으로 활성화하고 0.5초 동안 대기하여 포커스 안착 보장
                     if (targetHwnd != IntPtr.Zero)
                     {
-                        if (Win32Api.IsIconic(targetHwnd))
-                        {
-                            Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
-                        }
-                        Win32Api.SetForegroundWindow(targetHwnd);
+                        ForceSetForegroundWindow(targetHwnd);
                         await Task.Delay(500, token);
                     }
 
                     do
                     {
-                        // 2. 무한 루프 반복 시 혹시 포커스가 풀린 경우를 대비해 전면 배치 상태 유지
                         if (targetHwnd != IntPtr.Zero)
                         {
-                            if (Win32Api.IsIconic(targetHwnd))
-                            {
-                                Win32Api.ShowWindow(targetHwnd, Win32Api.SW_RESTORE);
-                            }
-                            Win32Api.SetForegroundWindow(targetHwnd);
+                            ForceSetForegroundWindow(targetHwnd);
                             await Task.Delay(200, token);
                         }
 
@@ -1030,10 +1059,9 @@ namespace KeyMacro
                                             targetY += rect.Top;
                                         }
 
-                                        await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-
                                         if (action.ActionType == "MouseClick")
                                         {
+                                            if (targetHwnd != IntPtr.Zero) ForceSetForegroundWindow(targetHwnd);
                                             await Task.Delay(20, token);
                                             SendMouseClickEvent(Win32Api.MOUSEEVENTF_LEFTDOWN, targetX, targetY);
                                             await Task.Delay(20, token);
@@ -1085,10 +1113,9 @@ namespace KeyMacro
                                         targetY += rect.Top;
                                     }
 
-                                    await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-
                                     if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_WHEEL)
                                     {
+                                        if (targetHwnd != IntPtr.Zero) ForceSetForegroundWindow(targetHwnd);
                                         SendMouseWheelEvent(evt.MouseEventFlags, evt.MouseData, targetX, targetY);
                                     }
                                     else if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_MOVE)
@@ -1097,6 +1124,7 @@ namespace KeyMacro
                                     }
                                     else if (evt.MouseEventFlags != 0)
                                     {
+                                        if (targetHwnd != IntPtr.Zero) ForceSetForegroundWindow(targetHwnd);
                                         SendMouseClickEvent(evt.MouseEventFlags, targetX, targetY);
                                     }
                                 }
@@ -1172,10 +1200,9 @@ namespace KeyMacro
                                                     targetY += rect.Top;
                                                 }
 
-                                                await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-
                                                 if (action.ActionType == "MouseClick")
                                                 {
+                                                    if (targetHwnd != IntPtr.Zero) ForceSetForegroundWindow(targetHwnd);
                                                     await Task.Delay(20, token);
                                                     SendMouseClickEvent(Win32Api.MOUSEEVENTF_LEFTDOWN, targetX, targetY);
                                                     await Task.Delay(20, token);
@@ -1226,10 +1253,9 @@ namespace KeyMacro
                                                 targetY += rect.Top;
                                             }
 
-                                            await EnsureTargetWindowFocused(targetHwnd, pressedKeys, token);
-
                                             if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_WHEEL)
                                             {
+                                                if (targetHwnd != IntPtr.Zero) ForceSetForegroundWindow(targetHwnd);
                                                 SendMouseWheelEvent(evt.MouseEventFlags, evt.MouseData, targetX, targetY);
                                             }
                                             else if (evt.MouseEventFlags == Win32Api.MOUSEEVENTF_MOVE)
@@ -1238,6 +1264,7 @@ namespace KeyMacro
                                             }
                                             else if (evt.MouseEventFlags != 0)
                                             {
+                                                if (targetHwnd != IntPtr.Zero) ForceSetForegroundWindow(targetHwnd);
                                                 SendMouseClickEvent(evt.MouseEventFlags, targetX, targetY);
                                             }
                                         }
@@ -1322,7 +1349,7 @@ namespace KeyMacro
 
             StartMacroButton.IsEnabled = true;
             PauseMacroButton.IsEnabled = false;
-            PauseMacroButton.Content = "일시정지 (F7)";
+            PauseMacroButton.Content = "일시정지 (Ctrl+F4)";
         }
 
         private void StartMacroButton_Click(object sender, RoutedEventArgs e)
@@ -1434,6 +1461,33 @@ namespace KeyMacro
             return (vk >= 33 && vk <= 46) || (vk >= 91 && vk <= 93);
         }
 
+        private static void ForceSetForegroundWindow(IntPtr hwnd)
+        {
+            if (hwnd == IntPtr.Zero) return;
+
+            if (Win32Api.IsIconic(hwnd))
+            {
+                Win32Api.ShowWindow(hwnd, Win32Api.SW_RESTORE);
+            }
+
+            IntPtr foregroundHwnd = Win32Api.GetForegroundWindow();
+            uint foregroundThreadId = Win32Api.GetWindowThreadProcessId(foregroundHwnd, IntPtr.Zero);
+            uint targetThreadId = Win32Api.GetWindowThreadProcessId(hwnd, IntPtr.Zero);
+
+            if (foregroundThreadId != targetThreadId && foregroundThreadId != 0 && targetThreadId != 0)
+            {
+                Win32Api.AttachThreadInput(foregroundThreadId, targetThreadId, true);
+                Win32Api.SetForegroundWindow(hwnd);
+                Win32Api.BringWindowToTop(hwnd);
+                Win32Api.AttachThreadInput(foregroundThreadId, targetThreadId, false);
+            }
+            else
+            {
+                Win32Api.SetForegroundWindow(hwnd);
+                Win32Api.BringWindowToTop(hwnd);
+            }
+        }
+
         private async Task EnsureTargetWindowFocused(IntPtr targetHwnd, List<ushort> pressedKeys, CancellationToken token)
         {
             // 수동 일시정지 혹은 포커스 상실 상태이면 루프 진입
@@ -1453,7 +1507,7 @@ namespace KeyMacro
                     {
                         if (_isMacroPaused)
                         {
-                            StatusText.Text = "수동 일시정지 중 (F7로 이어하기)";
+                            StatusText.Text = "수동 일시정지 중 (Ctrl+F4로 이어하기)";
                             StatusText.Foreground = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(245, 158, 11)); // 주황색
                         }
                         else
@@ -1548,13 +1602,13 @@ namespace KeyMacro
 
             if (_isMacroPaused)
             {
-                PauseMacroButton.Content = "이어하기 (F7)";
-                StatusText.Text = "수동 일시정지 중 (F7로 이어하기)";
+                PauseMacroButton.Content = "이어하기 (Ctrl+F4)";
+                StatusText.Text = "수동 일시정지 중 (Ctrl+F4로 이어하기)";
                 StatusText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // 주황색
             }
             else
             {
-                PauseMacroButton.Content = "일시정지 (F7)";
+                PauseMacroButton.Content = "일시정지 (Ctrl+F4)";
                 StatusText.Text = "매크로 동작 실행 중...";
                 StatusText.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11)); // 주황색
             }
