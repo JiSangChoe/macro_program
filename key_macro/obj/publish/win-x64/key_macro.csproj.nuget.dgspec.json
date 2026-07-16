@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\user\\Desktop\\업무\\작업파일\\key_macro\\key_macro.csproj": {}
+    "C:\\Users\\user\\Desktop\\업무\\작업파일\\macro_program\\key_macro\\key_macro.csproj": {}
   },
   "projects": {
-    "C:\\Users\\user\\Desktop\\업무\\작업파일\\key_macro\\key_macro.csproj": {
+    "C:\\Users\\user\\Desktop\\업무\\작업파일\\macro_program\\key_macro\\key_macro.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\user\\Desktop\\업무\\작업파일\\key_macro\\key_macro.csproj",
+        "projectUniqueName": "C:\\Users\\user\\Desktop\\업무\\작업파일\\macro_program\\key_macro\\key_macro.csproj",
         "projectName": "key_macro",
-        "projectPath": "C:\\Users\\user\\Desktop\\업무\\작업파일\\key_macro\\key_macro.csproj",
+        "projectPath": "C:\\Users\\user\\Desktop\\업무\\작업파일\\macro_program\\key_macro\\key_macro.csproj",
         "packagesPath": "C:\\Users\\user\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\user\\Desktop\\업무\\작업파일\\key_macro\\obj\\publish\\win-x64\\",
+        "outputPath": "C:\\Users\\user\\Desktop\\업무\\작업파일\\macro_program\\key_macro\\obj\\publish\\win-x64\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\user\\AppData\\Roaming\\NuGet\\NuGet.Config",

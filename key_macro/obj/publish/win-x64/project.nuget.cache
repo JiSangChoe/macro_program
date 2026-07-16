@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "WBM6Tqk8cJI=",
+  "dgSpecHash": "lkyXAmOxCWY=",
   "success": true,
-  "projectFilePath": "C:\\Users\\user\\Desktop\\업무\\작업파일\\key_macro\\key_macro.csproj",
+  "projectFilePath": "C:\\Users\\user\\Desktop\\업무\\작업파일\\macro_program\\key_macro\\key_macro.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\user\\.nuget\\packages\\microsoft.net.illink.tasks\\10.0.10\\microsoft.net.illink.tasks.10.0.10.nupkg.sha512",
     "C:\\Users\\user\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.10\\microsoft.netcore.app.runtime.win-x64.10.0.10.nupkg.sha512",

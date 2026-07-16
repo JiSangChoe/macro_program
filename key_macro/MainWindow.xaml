@@ -519,11 +519,11 @@
             </TabItem>
         </TabControl>
 
-        <!-- 탭 우측 상단 여백에 상태 정보 표시 배치 (하단 겹침 해결) -->
+        <!-- 탭 우측 상단 여백에 상태 정보 표시 배치 (말줄임표 및 MaxWidth 처리로 탭 헤더 겹침 완벽 방지) -->
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Height="30" Margin="0,3,15,0">
             <TextBlock Text="상태: " FontWeight="Bold" VerticalAlignment="Center" Foreground="#94A3B8" FontSize="12"/>
-            <TextBlock x:Name="StatusText" Text="대기 중" VerticalAlignment="Center" Margin="3,0,0,0" Foreground="#10B981" FontWeight="SemiBold" FontSize="12"/>
-            <TextBlock x:Name="MacroTimerText" Text="실행 시간: 0.0초" VerticalAlignment="Center" Margin="20,0,0,0" Foreground="#94A3B8" FontSize="11" FontWeight="SemiBold"/>
+            <TextBlock x:Name="StatusText" Text="대기 중" VerticalAlignment="Center" Margin="3,0,0,0" Foreground="#10B981" FontWeight="SemiBold" FontSize="12" MaxWidth="200" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, ElementName=StatusText}"/>
+            <TextBlock x:Name="MacroTimerText" Text="실행 시간: 0.0초" VerticalAlignment="Center" Margin="15,0,0,0" Foreground="#94A3B8" FontSize="11" FontWeight="SemiBold"/>
         </StackPanel>
     </Grid>
 

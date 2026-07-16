@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("key_macro")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7b601eafba60f9b2617b3a6247ff5daeaa6d984f")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e9dff4146fa877178ae700b5433c055a3afd4534")]
 [assembly: System.Reflection.AssemblyProductAttribute("key_macro")]
 [assembly: System.Reflection.AssemblyTitleAttribute("key_macro")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
