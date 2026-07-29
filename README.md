@@ -21,14 +21,69 @@ Windows에서 특정 프로그램 창을 대상으로 키보드와 마우스 동
 - 대상 창의 포커스가 사라지면 자동 일시정지
 - 설정한 대기 시간에 ±12% 범위의 무작위 편차 적용 가능
 
-## 실행 환경
+## 개발 환경
 
-- 운영체제: Windows
-- 프레임워크: .NET 10
-- UI: WPF
-- 별도 NuGet 패키지: 없음
+| 구분 | 내용 |
+|---|---|
+| 운영체제 | Windows 10/11 |
+| 개발 언어 | C# |
+| 대상 프레임워크 | .NET 10 (`net10.0-windows`) |
+| 데스크톱 UI | WPF (Windows Presentation Foundation) |
+| UI 정의 | XAML |
+| 프로젝트 형식 | SDK 스타일 `.csproj`, `.slnx` 솔루션 |
+| 권장 IDE | Visual Studio의 .NET 데스크톱 개발 워크로드 또는 Visual Studio Code + C# 확장 |
+| 빌드 도구 | .NET CLI (`dotnet build`, `dotnet run`, `dotnet publish`) |
+| 외부 패키지 | 없음 — .NET 기본 라이브러리와 Windows API 사용 |
 
-소스에서 실행하려면 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)이 필요합니다. 이미 배포된 `key_macro.exe`를 사용하는 경우 해당 실행 파일의 배포 방식에 따라 .NET Desktop Runtime이 필요할 수 있습니다.
+소스에서 실행하려면 [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)이 필요합니다. Visual Studio를 사용하는 경우 설치 관리자에서 **.NET 데스크톱 개발** 워크로드와 .NET 10 SDK를 설치해야 합니다.
+
+이미 배포된 `key_macro.exe`는 배포 방식에 따라 .NET Desktop Runtime이 필요할 수 있습니다. `--self-contained true`로 게시한 실행 파일은 대상 PC에 런타임을 별도로 설치하지 않아도 됩니다.
+
+## 기술 스택
+
+### 애플리케이션
+
+- **C# / .NET 10**: 프로그램 로직, 데이터 모델 및 비동기 매크로 실행
+- **WPF / XAML**: Windows 데스크톱 화면과 다크 테마 UI 구성
+- **이벤트 기반 구조**: 버튼, 키보드, 마우스 및 녹화 상태 이벤트 처리
+- **데이터 바인딩**: `ObservableCollection<T>`으로 창, 프로필, 동작 및 실행 목록을 UI와 연결
+
+### Windows 네이티브 연동
+
+별도 자동화 라이브러리 대신 P/Invoke로 Windows API를 직접 호출합니다.
+
+- `SendInput`: 키보드와 마우스 입력 전송
+- `SetWindowsHookEx`: 저수준 전역 키보드·마우스 훅 설치
+- `RegisterHotKey`: `Ctrl+F1`부터 `Ctrl+F6`까지 전역 단축키 등록
+- `EnumWindows`: 현재 열려 있는 최상위 창 검색
+- `SetForegroundWindow`, `ShowWindow`: 대상 창 활성화 및 최소화 복원
+- `GetForegroundWindow`: 실행 도중 대상 창 포커스 확인
+- `GetWindowRect`, `GetCursorPos`, `SetCursorPos`: 창 기준 상대 좌표 계산과 마우스 이동
+- `user32.dll`, `kernel32.dll`: Windows 시스템 DLL 연동
+
+### 데이터 및 실행 제어
+
+- **System.Text.Json**: 프로필을 `saves/profiles.json`에 직렬화하여 저장
+- **async/await와 Task**: UI가 멈추지 않도록 매크로 동작을 비동기로 실행
+- **CancellationTokenSource**: 실행 중인 매크로의 안전한 중지 처리
+- **Stopwatch / DispatcherTimer**: 녹화 제한 시간과 매크로 실행 시간 측정
+- **전역 입력 상태 관리**: 일시정지나 포커스 상실 시 눌린 키를 해제하여 키 고착 방지
+
+## 아키텍처 개요
+
+```text
+WPF 화면 (MainWindow.xaml)
+          │
+          ▼
+UI·실행 제어 (MainWindow.xaml.cs)
+   ├─ 수동 동작 모델 (MacroAction)
+   ├─ 프로필 모델 (MacroProfile)
+   ├─ 입력 녹화 (MacroRecorder)
+   ├─ JSON 저장 (ProfileManager)
+   └─ Windows API 호출 (Win32Api)
+```
+
+별도의 데이터베이스나 서버 없이 실행 파일이 있는 로컬 PC에서 독립적으로 동작합니다.
 
 ## 빠른 시작
 
